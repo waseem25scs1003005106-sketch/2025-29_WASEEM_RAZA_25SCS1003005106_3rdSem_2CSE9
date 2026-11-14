@@ -94,8 +94,8 @@ Use `--epochs 15` to train longer. Training takes a few minutes on a normal CPU.
 ```
 .
 ├── README.md
-├── digit_recognizer.py       # data loading, model, training, evaluation, charts
-├── requirements.txt
+├── digit_recognizer WASEEM RAZA.py       # data loading, model, training, evaluation, charts
+├── requirements WASEEM RAZA.txt
 ├── results/                  # model, metrics and charts appear here after a run
 └── docs/                     # internship report, presentation and certificate
 ```
@@ -113,4 +113,4 @@ Python, TensorFlow, Keras, NumPy, scikit-learn, Matplotlib, Seaborn, Git and Git
 
 ## Contact
 
-Waseem Raza, [your email or LinkedIn]
+Waseem Raza, [waseem.25scs1003005106@iilm.edu]
