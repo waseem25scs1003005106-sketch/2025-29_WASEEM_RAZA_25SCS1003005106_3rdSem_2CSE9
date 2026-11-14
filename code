@@ -1,0 +1,154 @@
+"""
+Handwritten Digit Recognizer (MNIST)
+AI Internship project, Codec Technologies
+
+Trains a small Convolutional Neural Network (CNN) with TensorFlow/Keras to
+recognise handwritten digits 0-9, then saves the model, the metrics and a few
+charts into the results/ folder.
+
+Run:
+    python digit_recognizer.py
+    python digit_recognizer.py --epochs 15
+"""
+import argparse
+import json
+import os
+
+import matplotlib
+matplotlib.use("Agg")  # no display needed, works on Colab and servers
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import tensorflow as tf
+from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow import keras
+from tensorflow.keras import layers
+
+RESULTS_DIR = "results"
+SEED = 42
+
+
+def load_data():
+    """Load MNIST and scale pixel values from 0-255 to 0-1."""
+    (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+    x_train = x_train.astype("float32") / 255.0
+    x_test = x_test.astype("float32") / 255.0
+    # the CNN expects a channel dimension: (28, 28) -> (28, 28, 1)
+    x_train = np.expand_dims(x_train, -1)
+    x_test = np.expand_dims(x_test, -1)
+    return (x_train, y_train), (x_test, y_test)
+
+
+def build_model():
+    """Two Conv + MaxPool blocks, then dropout and a 10-class softmax layer."""
+    model = keras.Sequential(
+        [
+            keras.Input(shape=(28, 28, 1)),
+            layers.Conv2D(32, (3, 3), activation="relu"),
+            layers.MaxPooling2D((2, 2)),
+            layers.Conv2D(64, (3, 3), activation="relu"),
+            layers.MaxPooling2D((2, 2)),
+            layers.Flatten(),
+            layers.Dropout(0.5),
+            layers.Dense(10, activation="softmax"),
+        ],
+        name="digit_cnn",
+    )
+    model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
+
+
+def plot_history(history):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].plot(history.history["accuracy"], label="train")
+    axes[0].plot(history.history["val_accuracy"], label="validation")
+    axes[0].set_title("Accuracy")
+    axes[0].set_xlabel("Epoch")
+    axes[0].legend()
+    axes[1].plot(history.history["loss"], label="train")
+    axes[1].plot(history.history["val_loss"], label="validation")
+    axes[1].set_title("Loss")
+    axes[1].set_xlabel("Epoch")
+    axes[1].legend()
+    fig.tight_layout()
+    fig.savefig(os.path.join(RESULTS_DIR, "training_curves.png"), dpi=150)
+    plt.close(fig)
+
+
+def plot_confusion(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(7, 6))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.xlabel("Predicted digit")
+    plt.ylabel("Actual digit")
+    plt.title("Confusion matrix (test set)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "confusion_matrix.png"), dpi=150)
+    plt.close()
+
+
+def plot_samples(x_test, y_test, y_pred, n=12):
+    idx = np.random.RandomState(SEED).choice(len(x_test), n, replace=False)
+    fig, axes = plt.subplots(2, 6, figsize=(12, 5))
+    for ax, i in zip(axes.ravel(), idx):
+        ax.imshow(x_test[i].squeeze(), cmap="gray")
+        ok = y_pred[i] == y_test[i]
+        ax.set_title(f"pred {y_pred[i]} / true {y_test[i]}",
+                     color="green" if ok else "red", fontsize=10)
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(os.path.join(RESULTS_DIR, "sample_predictions.png"), dpi=150)
+    plt.close(fig)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=128)
+    args = parser.parse_args()
+
+    tf.keras.utils.set_random_seed(SEED)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    (x_train, y_train), (x_test, y_test) = load_data()
+    print(f"Train: {x_train.shape}, Test: {x_test.shape}")
+
+    model = build_model()
+    model.summary()
+
+    history = model.fit(
+        x_train, y_train,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        validation_split=0.1,
+        verbose=2,
+    )
+
+    test_loss, test_acc = model.evaluate(x_test, y_test, verbose=0)
+    print(f"\nTest accuracy: {test_acc * 100:.2f}%  |  Test loss: {test_loss:.4f}")
+
+    y_pred = np.argmax(model.predict(x_test, verbose=0), axis=1)
+    report = classification_report(y_test, y_pred, digits=4)
+    print(report)
+
+    plot_history(history)
+    plot_confusion(y_test, y_pred)
+    plot_samples(x_test, y_test, y_pred)
+
+    model.save(os.path.join(RESULTS_DIR, "digit_cnn.keras"))
+    with open(os.path.join(RESULTS_DIR, "metrics.json"), "w") as f:
+        json.dump({"test_accuracy": float(test_acc),
+                   "test_loss": float(test_loss),
+                   "epochs": args.epochs,
+                   "batch_size": args.batch_size}, f, indent=2)
+    with open(os.path.join(RESULTS_DIR, "classification_report.txt"), "w") as f:
+        f.write(report)
+    print(f"Saved model, metrics and charts to ./{RESULTS_DIR}/")
+
+
+if __name__ == "__main__":
+    main()
